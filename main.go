@@ -1,5 +1,8 @@
 package main
 
+// TODO: Flag for string to search for
+// TODO: Flag for case insensitivity
+
 import (
 	"flag"
 	"fmt"
@@ -11,10 +14,6 @@ import (
 	"golang.zx2c4.com/wireguard/wgctrl/wgtypes"
 )
 
-const (
-	NumWorkers = 12
-)
-
 type keypair struct {
 	PublicKey  string
 	PrivateKey string
@@ -22,12 +21,16 @@ type keypair struct {
 
 func main() {
 	termPtr := flag.String("term", "feeb/", "The string to match in the public key")
+	workersPtr := flag.Int("workers", 4, "The number of concurrent workers")
+	countPtr := flag.Int("count", 0, "Limit the number of results")
 	casePtr := flag.Bool("c", false, "Ignore case in the public key")
 	flag.Parse()
 
-	threadChan := make(chan int, NumWorkers)
+	threadChan := make(chan int, *workersPtr)
 	stopChan := make(chan int)
 	resultsChan := make(chan keypair)
+
+	resultsCtr := 0
 
 	go func() {
 		_ = <-stopChan
@@ -36,10 +39,11 @@ func main() {
 	}()
 
 	go func() {
-		for {
+		for ; *countPtr == 0 || resultsCtr < *countPtr; resultsCtr += 1 {
 			result := <-resultsChan
 			fmt.Printf("Private Key: %s\tPublic Key: %s\n", result.PrivateKey, result.PublicKey)
 		}
+		stopChan <- 1
 	}()
 
 	for {
